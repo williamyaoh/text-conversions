@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 
 {-|
@@ -46,8 +47,6 @@ module Data.Text.Conversions (
   , Base16(..)
   , Base64(..)
   ) where
-
-import Control.Error.Util (hush)
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -143,6 +142,10 @@ convertText = fromText . toText
 decodeConvertText :: (DecodeText f a, FromText b) => a -> f b
 decodeConvertText = fmap fromText . decodeText
 
+hush :: Either a b -> Maybe b
+hush (Left  _) = Nothing
+hush (Right x) = Just x
+
 instance ToText   Char    where toText   = T.singleton
 instance ToText   T.Text  where toText   = id
 instance FromText T.Text  where fromText = id
@@ -159,9 +162,15 @@ instance FromText         (UTF8 BL.ByteString) where fromText   = UTF8 . TL.enco
 instance ToText (Base16 B.ByteString) where
   toText = T.decodeUtf8 . Base16.encode . unBase16
 instance FromText (Maybe (Base16 B.ByteString)) where
+#if MIN_VERSION_base16_bytestring(1,0,0)
+  fromText txt = case Base16.decode (T.encodeUtf8 txt) of
+    Right bs -> Just $ Base16 bs
+    Left _   -> Nothing
+#else
   fromText txt = case Base16.decode (T.encodeUtf8 txt) of
     (bs, "") -> Just $ Base16 bs
     (_,  _)  -> Nothing
+#endif
 
 instance ToText (Base64 B.ByteString) where
   toText = T.decodeUtf8 . Base64.encode . unBase64
@@ -171,9 +180,15 @@ instance FromText (Maybe (Base64 B.ByteString)) where
 instance ToText (Base16 BL.ByteString) where
   toText = TL.toStrict . TL.decodeUtf8 . Base16L.encode . unBase16
 instance FromText (Maybe (Base16 BL.ByteString)) where
+#if MIN_VERSION_base16_bytestring(1,0,0)
+  fromText txt = case Base16L.decode (TL.encodeUtf8 $ TL.fromStrict txt) of
+    Right bs -> Just $ Base16 bs
+    Left _   -> Nothing
+#else
   fromText txt = case Base16L.decode (TL.encodeUtf8 $ TL.fromStrict txt) of
     (bs, "") -> Just $ Base16 bs
     (_,  _)  -> Nothing
+#endif
 
 instance ToText (Base64 BL.ByteString) where
   toText = TL.toStrict . TL.decodeUtf8 . Base64L.encode . unBase64
